@@ -789,14 +789,38 @@ function closeEditorSearch() { $('in-page-search').style.display = 'none'; if (C
   $('editor').addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
       e.preventDefault();
-      const sel = window.getSelection(); let node = sel.anchorNode;
+      const sel = window.getSelection(); if (!sel.rangeCount) return;
+      let node = sel.anchorNode;
       let isInList = false;
       while (node && node !== $('editor')) { if (node.nodeName === 'LI') { isInList = true; break; } node = node.parentNode; }
-      if (isInList) {
-        if (e.shiftKey) document.execCommand('outdent'); else document.execCommand('indent');
+      
+      if (e.shiftKey) {
+        if (isInList) {
+          document.execCommand('outdent');
+        } else {
+          // 일반 텍스트에서 Shift+Tab: 앞의 공백(내어쓰기) 제거
+          const range = sel.getRangeAt(0);
+          if (range.collapsed && range.startContainer.nodeType === 3) {
+            const text = range.startContainer.textContent;
+            const offset = range.startOffset;
+            // 앞의 두 글자가 연속된 공백이면 제거
+            if (offset >= 2 && text.substring(offset - 2, offset) === '\u00a0\u00a0') {
+              range.setStart(range.startContainer, offset - 2);
+              range.deleteContents();
+            } else if (offset >= 1 && text.substring(offset - 1, offset) === '\u00a0') {
+              range.setStart(range.startContainer, offset - 1);
+              range.deleteContents();
+            }
+          }
+        }
       } else {
-        const r = sel.getRangeAt(0), t = document.createTextNode('\u00a0\u00a0');
-        r.insertNode(t); r.setStartAfter(t); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+        if (isInList) {
+          document.execCommand('indent');
+        } else {
+          // 일반 텍스트에서 Tab: 공백 2칸 삽입
+          const r = sel.getRangeAt(0), t = document.createTextNode('\u00a0\u00a0');
+          r.insertNode(t); r.setStartAfter(t); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+        }
       }
       updateCurrentMemo();
     }
