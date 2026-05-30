@@ -610,6 +610,7 @@ async function insertImageFromFile(file) {
     const fileUrl = await window.api.saveImage(e.target.result, file.name.split('.').pop() || 'png');
     $('editor').focus();
     document.execCommand('insertHTML', false, `<img src="${fileUrl}" style="max-width:100%; vertical-align:top;">`);
+    document.execCommand('insertParagraph');
     updateCurrentMemo();
   };
   reader.readAsDataURL(file);
@@ -791,10 +792,12 @@ function closeEditorSearch() { $('in-page-search').style.display = 'none'; if (C
       e.preventDefault();
       const sel = window.getSelection(); if (!sel.rangeCount) return;
       const editor = $('editor');
-      let node = sel.anchorNode;
+      const range = sel.getRangeAt(0);
+      const anchorNode = sel.anchorNode;
+      const anchorOffset = sel.anchorOffset;
       
       // 현재 커서가 속한 블록(DIV, LI 등) 찾기
-      let block = node;
+      let block = anchorNode;
       if (block.nodeType === 3) block = block.parentNode;
       while (block && block !== editor && !['DIV', 'P', 'LI'].includes(block.nodeName)) {
         block = block.parentNode;
@@ -802,53 +805,72 @@ function closeEditorSearch() { $('in-page-search').style.display = 'none'; if (C
       const targetBlock = (block && block !== editor) ? block : null;
 
       let isInList = false;
-      let temp = node;
+      let temp = anchorNode;
       while (temp && temp !== editor) { if (temp.nodeName === 'LI') { isInList = true; break; } temp = temp.parentNode; }
       
       if (e.shiftKey) {
         if (isInList) {
           document.execCommand('outdent');
         } else if (targetBlock) {
-          // 일반 텍스트 줄 맨 앞의 공백 제거
-          const range = document.createRange();
-          range.selectNodeContents(targetBlock);
-          const blockText = targetBlock.textContent;
-          
-          if (blockText.startsWith('\u00a0\u00a0')) {
-            // 공백 2칸으로 시작하면 2칸 제거
-            const textNode = targetBlock.firstChild;
-            if (textNode && textNode.nodeType === 3) {
-              textNode.textContent = textNode.textContent.substring(2);
-            }
-          } else if (blockText.startsWith('\u00a0') || blockText.startsWith(' ')) {
-            // 공백 1칸으로 시작하면 1칸 제거
-            const textNode = targetBlock.firstChild;
-            if (textNode && textNode.nodeType === 3) {
-              textNode.textContent = textNode.textContent.substring(1);
+          const firstChild = targetBlock.firstChild;
+          if (firstChild && firstChild.nodeType === 3) {
+            const text = firstChild.textContent;
+            let removedCount = 0;
+            if (text.startsWith('\u00a0\u00a0')) removedCount = 2;
+            else if (text.startsWith('\u00a0') || text.startsWith(' ')) removedCount = 1;
+            
+            if (removedCount > 0) {
+              firstChild.textContent = text.substring(removedCount);
+              // 커서 위치 복구 (내어쓰기만큼 앞으로 이동하여 제자리 유지)
+              const newRange = document.createRange();
+              let newOffset = anchorOffset;
+              if (anchorNode === firstChild) newOffset = Math.max(0, anchorOffset - removedCount);
+              newRange.setStart(anchorNode, newOffset);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
             }
           }
         }
       } else {
         if (isInList) {
-          document.execCommand('indent');
+          // depth 체크: 2depth(UL/OL이 2개 중첩)까지만 허용
+          let depth = 0;
+          let curr = temp;
+          while (curr && curr !== editor) {
+            if (curr.nodeName === 'UL' || curr.nodeName === 'OL') depth++;
+            curr = curr.parentNode;
+          }
+          if (depth < 2) document.execCommand('indent');
         } else if (targetBlock) {
-          // 일반 텍스트 줄 맨 앞에 공백 2칸 삽입
           const firstChild = targetBlock.firstChild;
           if (firstChild && firstChild.nodeType === 3) {
             firstChild.textContent = '\u00a0\u00a0' + firstChild.textContent;
+            
+            // 커서 위치 복구 (들여쓰기만큼 뒤로 이동하여 제자리 유지)
+            const newRange = document.createRange();
+            let newOffset = anchorOffset;
+            if (anchorNode === firstChild) newOffset = anchorOffset + 2;
+            newRange.setStart(anchorNode, newOffset);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
           } else {
             const newText = document.createTextNode('\u00a0\u00a0');
             targetBlock.insertBefore(newText, targetBlock.firstChild);
+            
+            const newRange = document.createRange();
+            // 입력 포커스 제자리 유지 (빈 줄인 경우에만 공백 뒤로, 아니면 원래 위치 유지)
+            if (targetBlock.innerText.trim() === '' || targetBlock.innerHTML === '<br>') {
+              newRange.setStart(newText, 2);
+            } else {
+              newRange.setStart(anchorNode, anchorOffset);
+            }
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
           }
-          
-          // 커서 위치 유지를 위해 기존 셀렉션 복구 (단순화된 방식)
-          const newRange = document.createRange();
-          newRange.setStart(node, sel.anchorOffset);
-          newRange.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(newRange);
         } else {
-          // 블록을 못 찾은 경우 기존 방식 (커서 위치에 삽입)
           document.execCommand('insertText', false, '\u00a0\u00a0');
         }
       }
