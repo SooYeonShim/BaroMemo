@@ -790,36 +790,40 @@ function closeEditorSearch() { $('in-page-search').style.display = 'none'; if (C
     if (e.key === 'Tab') {
       e.preventDefault();
       const sel = window.getSelection(); if (!sel.rangeCount) return;
+      const editor = $('editor');
       let node = sel.anchorNode;
       let isInList = false;
-      while (node && node !== $('editor')) { if (node.nodeName === 'LI') { isInList = true; break; } node = node.parentNode; }
+      while (node && node !== editor) { if (node.nodeName === 'LI') { isInList = true; break; } node = node.parentNode; }
       
       if (e.shiftKey) {
         if (isInList) {
           document.execCommand('outdent');
         } else {
-          // 일반 텍스트에서 Shift+Tab: 앞의 공백(내어쓰기) 제거
-          const range = sel.getRangeAt(0);
-          if (range.collapsed && range.startContainer.nodeType === 3) {
-            const text = range.startContainer.textContent;
-            const offset = range.startOffset;
-            // 앞의 두 글자가 연속된 공백이면 제거
-            if (offset >= 2 && text.substring(offset - 2, offset) === '\u00a0\u00a0') {
-              range.setStart(range.startContainer, offset - 2);
-              range.deleteContents();
-            } else if (offset >= 1 && text.substring(offset - 1, offset) === '\u00a0') {
-              range.setStart(range.startContainer, offset - 1);
-              range.deleteContents();
-            }
+          // 일반 텍스트에서 Shift+Tab: 앞의 공백(내어쓰기) 제거 (최대 2칸)
+          for (let i = 0; i < 2; i++) {
+            const range = sel.getRangeAt(0);
+            const preRange = range.cloneRange();
+            try {
+              // 현재 커서 앞의 한 글자를 범위로 잡음
+              preRange.setStart(editor, 0);
+              const text = preRange.toString();
+              const lastChar = text.charAt(text.length - 1);
+              
+              // 공백(일반 공백 또는 NBSP)인 경우에만 삭제 실행
+              if (lastChar === '\u00a0' || lastChar === ' ') {
+                document.execCommand('delete', false, null);
+              } else {
+                break; // 공백이 아니면 중단
+              }
+            } catch (err) { break; }
           }
         }
       } else {
         if (isInList) {
           document.execCommand('indent');
         } else {
-          // 일반 텍스트에서 Tab: 공백 2칸 삽입
-          const r = sel.getRangeAt(0), t = document.createTextNode('\u00a0\u00a0');
-          r.insertNode(t); r.setStartAfter(t); r.collapse(true); sel.removeAllRanges(); sel.addRange(r);
+          // 일반 텍스트에서 Tab: 공백 2칸 삽입 (execCommand 사용으로 Undo 지원 및 커서 관리 최적화)
+          document.execCommand('insertText', false, '\u00a0\u00a0');
         }
       }
       updateCurrentMemo();
