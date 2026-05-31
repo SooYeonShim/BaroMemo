@@ -3,7 +3,7 @@
 > **"생각나는 즉시, 기록은 바르게."**  
 > 복잡한 설정 없이 실행 파일 하나로 즐기는 미니멀하고 강력한 데스크톱 메모 앱입니다.
 
-[**📥 최신 버전 다운로드 (Windows .exe)**](https://github.com/SooYeonShim/BaroMemo/releases)
+[**📥 최신 버전 다운로드 (BaroMemo .exe)**](https://github.com/SooYeonShim/BaroMemo/releases)
 
 ---
 
