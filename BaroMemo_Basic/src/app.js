@@ -1319,6 +1319,14 @@ function duplicateLine() {
 
   // 툴팁 제어 로직
   $('editor').addEventListener('mousemove', (e) => {
+    const editor = $('editor');
+    const scrollbarWidth = editor.offsetWidth - editor.clientWidth;
+    if (e.clientX > editor.getBoundingClientRect().right - scrollbarWidth) {
+      editor.style.cursor = 'default';
+    } else {
+      editor.style.cursor = '';
+    }
+
     const tooltip = $('link-tooltip');
     const link = e.target.closest('.memo-link');
     

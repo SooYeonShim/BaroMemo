@@ -286,6 +286,8 @@ body.dark .filter-tag-chip {
     cursor: text;
     -webkit-user-drag: none;
     user-select: text;
+    overflow-wrap: anywhere;
+    display: inline-block;
   }
   /* 전역 커스텀 툴팁 스타일 */
   #link-tooltip {
@@ -317,8 +319,9 @@ body.dark .filter-tag-chip {
   #editor {
     flex: 1;
     outline: none;
-    padding: 10px 20px 15px 14px;
+    padding: 10px 14px 15px 14px;
     overflow-y: auto;
+    scrollbar-gutter: stable;
     font-size: 16px;
     line-height: 1.8;
     color: var(--text);
@@ -326,6 +329,7 @@ body.dark .filter-tag-chip {
     word-break: break-word;
     user-select: text;
     position: relative;
+    cursor: text;
   }
   #editor ul { list-style-type: disc; }
   #editor ul ul { list-style-type: circle; }
