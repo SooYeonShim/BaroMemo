@@ -944,9 +944,9 @@ function duplicateLine() {
           el.removeAttribute('data-empty');
         }
 
-        // 링크 자동 변환 실행
-        clearTimeout(el.linkifyTimer);
-        el.linkifyTimer = setTimeout(linkifyEditor, 200);
+        // 링크 실시간 자동 변환(linkifyEditor) 비활성화 (1안 적용)
+        // clearTimeout(el.linkifyTimer);
+        // el.linkifyTimer = setTimeout(linkifyEditor, 200);
       }
       updateCurrentMemo();
     });
