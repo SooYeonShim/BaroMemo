@@ -724,25 +724,59 @@ function performEditorSearch() {
 
 function linkifyEditor() {
   const editor = $('editor');
+  
+  // 1. 방해 노드 제거 및 정규화
+  const comments = [];
+  const commentWalk = document.createTreeWalker(editor, NodeFilter.SHOW_COMMENT, null, false);
+  let c;
+  while (c = commentWalk.nextNode()) comments.push(c);
+  comments.forEach(c => c.remove());
+  editor.normalize();
+
   const sel = window.getSelection();
   let savedRange = null;
-  if (sel.rangeCount > 0) savedRange = sel.getRangeAt(0).cloneRange();
-
-  const textNodes = [];
-  const walk = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
-  let n;
-  while (n = walk.nextNode()) {
-    if (!n.parentElement.closest('.memo-link')) {
-      textNodes.push(n);
-    }
+  if (sel.rangeCount > 0) {
+    try { savedRange = sel.getRangeAt(0).cloneRange(); } catch(e) {}
   }
 
+  // 2. 모든 텍스트 노드 수집 (재귀적)
+  const textNodes = [];
+  function collectTextNodes(node) {
+    if (node.nodeType === 3) {
+      // 텍스트 노드 수집
+      textNodes.push(node);
+    } else if (node.nodeType === 1) {
+      // .memo-link span 자체는 건너뜀 (내용물만 처리)
+      for (let child of node.childNodes) collectTextNodes(child);
+    }
+  }
+  collectTextNodes(editor);
+
+  const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
+
+  // 3. 변환 및 정리 실행
   textNodes.forEach(node => {
-    const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
+    const parent = node.parentNode;
+    if (!parent) return;
+
+    // 이미 링크인 경우: 텍스트가 URL과 일치하지 않으면 unwrap
+    if (parent.tagName === 'SPAN' && parent.classList.contains('memo-link')) {
+      const linkText = parent.textContent;
+      if (!linkText.match(/^https?:\/\/[^\s\u00a0]+$/i)) {
+        const fragment = document.createDocumentFragment();
+        while (parent.firstChild) fragment.appendChild(parent.firstChild);
+        parent.parentNode.replaceChild(fragment, parent);
+      }
+      return;
+    }
+
+    // 링크가 아닌 경우: URL 검색 및 변환
     const text = node.textContent;
     let match;
     const fragments = [];
     let lastIdx = 0;
+    urlPattern.lastIndex = 0; // 정규식 상태 초기화
+
     while ((match = urlPattern.exec(text)) !== null) {
       if (match.index > lastIdx) {
         fragments.push(document.createTextNode(text.substring(lastIdx, match.index)));
@@ -759,7 +793,6 @@ function linkifyEditor() {
       if (lastIdx < text.length) {
         fragments.push(document.createTextNode(text.substring(lastIdx)));
       }
-      const parent = node.parentNode;
       fragments.forEach(f => parent.insertBefore(f, node));
       parent.removeChild(node);
     }
@@ -900,6 +933,10 @@ function duplicateLine() {
         } else {
           el.removeAttribute('data-empty');
         }
+
+        // 링크 자동 변환 실행
+        clearTimeout(el.linkifyTimer);
+        el.linkifyTimer = setTimeout(linkifyEditor, 200);
       }
       updateCurrentMemo();
     });
@@ -1367,7 +1404,6 @@ function duplicateLine() {
 
   $('editor').addEventListener('paste', async (e) => { 
     const htmlData = e.clipboardData.getData('text/html'), textData = e.clipboardData.getData('text/plain');
-    if (htmlData && htmlData.includes('<!-- baromemo-mixed -->')) return;
     const items = e.clipboardData?.items; 
     if (items) { for (const item of items) { if (item.type.startsWith('image/')) { e.preventDefault(); await insertImageFromFile(item.getAsFile()); return; } } }
     

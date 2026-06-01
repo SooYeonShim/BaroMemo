@@ -724,29 +724,41 @@ function performEditorSearch() {
 
 function linkifyEditor() {
   const editor = $('editor');
+  
+  // 1. 방해 노드 제거 및 정규화
+  const comments = [];
+  const commentWalk = document.createTreeWalker(editor, NodeFilter.SHOW_COMMENT, null, false);
+  let c;
+  while (c = commentWalk.nextNode()) comments.push(c);
+  comments.forEach(c => c.remove());
+  editor.normalize();
+
   const sel = window.getSelection();
   let savedRange = null;
-  if (sel.rangeCount > 0) savedRange = sel.getRangeAt(0).cloneRange();
-
-  const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
-  const textNodes = [];
-  const walk = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
-  let n;
-  while (n = walk.nextNode()) {
-    if (!n.parentElement.closest('.memo-link')) {
-      textNodes.push(n);
-    }
+  if (sel.rangeCount > 0) {
+    try { savedRange = sel.getRangeAt(0).cloneRange(); } catch(e) {}
   }
 
+  // 2. 모든 텍스트 노드 수집 (재귀적)
+  const textNodes = [];
+  function collectTextNodes(node) {
+    if (node.nodeType === 3) {
+      if (!node.parentElement.closest('.memo-link')) textNodes.push(node);
+    } else {
+      for (let child of node.childNodes) collectTextNodes(child);
+    }
+  }
+  collectTextNodes(editor);
+
+  // 3. 변환 실행
   textNodes.forEach(node => {
+    const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
     const text = node.textContent;
     let match;
     const fragments = [];
     let lastIdx = 0;
     while ((match = urlPattern.exec(text)) !== null) {
-      if (match.index > lastIdx) {
-        fragments.push(document.createTextNode(text.substring(lastIdx, match.index)));
-      }
+      if (match.index > lastIdx) fragments.push(document.createTextNode(text.substring(lastIdx, match.index)));
       const span = document.createElement('span');
       span.className = 'memo-link';
       span.dataset.href = match[0];
@@ -754,14 +766,13 @@ function linkifyEditor() {
       fragments.push(span);
       lastIdx = urlPattern.lastIndex;
     }
-
     if (fragments.length > 0) {
-      if (lastIdx < text.length) {
-        fragments.push(document.createTextNode(text.substring(lastIdx)));
-      }
+      if (lastIdx < text.length) fragments.push(document.createTextNode(text.substring(lastIdx)));
       const parent = node.parentNode;
-      fragments.forEach(f => parent.insertBefore(f, node));
-      parent.removeChild(node);
+      if (parent) {
+        fragments.forEach(f => parent.insertBefore(f, node));
+        parent.removeChild(node);
+      }
     }
   });
 
@@ -900,6 +911,10 @@ function duplicateLine() {
         } else {
           el.removeAttribute('data-empty');
         }
+
+        // 링크 자동 변환 실행
+        clearTimeout(el.linkifyTimer);
+        el.linkifyTimer = setTimeout(linkifyEditor, 200);
       }
       updateCurrentMemo();
     });
