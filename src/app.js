@@ -1572,6 +1572,9 @@ function duplicateLine() {
     } else if (key === 'z' || key === 'y') setTimeout(updateCurrentMemo, 0);
   });
 
+  window.addEventListener('keydown', (e) => { if (e.key === 'Control') $('editor').setAttribute('data-ctrl', 'true'); });
+  window.addEventListener('keyup', (e) => { if (e.key === 'Control') $('editor').removeAttribute('data-ctrl'); });
+
   window.addEventListener('focus', () => {
     if (currentMemoId && !$('drawer').classList.contains('open')) {
       const editor = $('editor');
