@@ -720,7 +720,6 @@ function linkifyEditor() {
   let savedRange = null;
   if (sel.rangeCount > 0) savedRange = sel.getRangeAt(0).cloneRange();
 
-  const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
   const textNodes = [];
   const walk = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
   let n;
@@ -731,6 +730,7 @@ function linkifyEditor() {
   }
 
   textNodes.forEach(node => {
+    const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
     const text = node.textContent;
     let match;
     const fragments = [];
@@ -1356,21 +1356,6 @@ function duplicateLine() {
     const items = e.clipboardData?.items; 
     if (items) { for (const item of items) { if (item.type.startsWith('image/')) { e.preventDefault(); await insertImageFromFile(item.getAsFile()); return; } } }
     
-    // 붙여넣기 완료 후 URL을 링크로 변환
-    setTimeout(() => {
-      linkifyEditor();
-      
-      const editor = $('editor');
-      if (editor.children.length > 1) {
-        const first = editor.firstElementChild;
-        if (first && first.tagName === 'DIV' && (first.innerHTML === '<br>' || first.innerHTML === '')) {
-          first.remove();
-        }
-      }
-
-      updateCurrentMemo();
-    }, 10);
-
     if (textData && !htmlData) {
       const urlPattern = /^(https?:\/\/[^\s]+)$/i;
       const trimmed = textData.trim();
@@ -1397,6 +1382,21 @@ function duplicateLine() {
         return;
       }
     }
+
+    // 일반 텍스트나 HTML 붙여넣기 시에만 전체 변환 로직 실행
+    setTimeout(() => {
+      linkifyEditor();
+      
+      const editor = $('editor');
+      if (editor.children.length > 1) {
+        const first = editor.firstElementChild;
+        if (first && first.tagName === 'DIV' && (first.innerHTML === '<br>' || first.innerHTML === '')) {
+          first.remove();
+        }
+      }
+
+      updateCurrentMemo();
+    }, 100);
   });
 
   $('editor').addEventListener('copy', (e) => {
