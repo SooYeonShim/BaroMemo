@@ -1431,10 +1431,62 @@ function duplicateLine() {
       if (urlPattern.test(trimmed)) {
         e.preventDefault();
         
-        // 1. 스팬 링크 삽입
-        const html = `<span class="memo-link" data-href="${trimmed}">${trimmed}</span> `;
-        document.execCommand('insertHTML', false, html);
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
         
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        
+        // [Refined Fix] 에디터가 완전히 비어있거나 초기 블록만 있는 경우 강제 초기화
+        const editor = $('editor');
+        const isEmptyEditor = editor.innerHTML === '<div><br></div>' || editor.innerHTML === '<br>' || editor.innerHTML === '';
+        
+        if (isEmptyEditor) {
+          editor.innerHTML = '';
+          editor.removeAttribute('data-empty'); // 붙여넣기 즉시 플레이스홀더 제거
+          // 에디터를 비웠으므로 range를 다시 잡음
+          range.setStart(editor, 0);
+          range.collapse(true);
+        } else {
+          // 일반적인 빈 블록(LI 등) 처리 로직 유지
+          let block = range.startContainer;
+          if (block.nodeType === 3) block = block.parentNode;
+          while (block && block !== editor && !['DIV','P','LI'].includes(block.nodeName)) {
+            block = block.parentNode;
+          }
+          if (block && block !== editor && (block.innerHTML === '<br>' || block.innerHTML === '')) {
+            block.innerHTML = '';
+            range.setStart(block, 0);
+            range.collapse(true);
+          }
+        }
+        
+        // 1. 링크 스팬 노드 생성
+        const span = document.createElement('span');
+        span.className = 'memo-link';
+        span.setAttribute('data-href', trimmed);
+        span.textContent = trimmed;
+        
+        // 2. 방화벽 역할을 할 제로 너비 공백(ZWSP) 텍스트 노드 생성
+        const firewallNode = document.createTextNode('\u200B');
+        
+        // 3. DocumentFragment에 차례대로 담아서 한 번에 삽입 (안정성 확보)
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(span);
+        fragment.appendChild(firewallNode);
+        
+        range.insertNode(fragment);
+        
+        // 4. 커서를 방화벽 노드(ZWSP)의 바로 뒤(오프셋 1)로 강제 이동
+        // 이렇게 하면 커서가 완벽히 <span> 바깥에 존재하게 됨
+        const newRange = document.createRange();
+        newRange.setStart(firewallNode, 1);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        
+        document.execCommand('removeFormat', false, null);
+
         setTimeout(updateCurrentMemo, 10);
         return;
       }
