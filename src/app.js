@@ -207,6 +207,13 @@ function selectMemo(id) {
   $('editor-title').value = memo.title || '';
   editor.innerHTML = memo.content || '';
 
+  // 플레이스홀더 상태 설정
+  if (editor.innerHTML === '<div><br></div>' || editor.innerHTML === '' || editor.innerHTML === '<br>') {
+    editor.setAttribute('data-empty', 'true');
+  } else {
+    editor.removeAttribute('data-empty');
+  }
+
   // 기존 링크들에서 title 속성 제거 (커스텀 툴팁과 겹침 방지)
   if (typeof fixExistingLinks === 'function') fixExistingLinks(editor);
   
@@ -244,6 +251,7 @@ function clearEditor() {
   
   const editor = $('editor');
   editor.innerHTML = '<div><br></div>'; // 초기 블록 구조 강제 생성
+  editor.setAttribute('data-empty', 'true');
   editor.contentEditable = true;
   
   // 에디터 서식 상태 초기화
@@ -885,6 +893,13 @@ function duplicateLine() {
     el.addEventListener('input', () => {
       if (el.id === 'editor') {
         if (el.innerText.length > 50000) { showToast('최대 50,000자까지 가능합니다.'); el.innerText = el.innerText.slice(0, 50000); }
+        
+        // 플레이스홀더 상태 토글
+        if (el.innerHTML === '<div><br></div>' || el.innerHTML === '' || el.innerHTML === '<br>') {
+          el.setAttribute('data-empty', 'true');
+        } else {
+          el.removeAttribute('data-empty');
+        }
       }
       updateCurrentMemo();
     });

@@ -350,8 +350,7 @@ body.dark .filter-tag-chip {
     display: inline-block; 
     vertical-align: top;
   }
-  #editor:empty::before,
-  #editor:has(> div:only-child > br:only-child)::before {
+  #editor[data-empty]::before {
     content: '여기에 메모를 작성하세요...';
     color: var(--text3);
     pointer-events: none;
