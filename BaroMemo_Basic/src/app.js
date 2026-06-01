@@ -903,7 +903,17 @@ function duplicateLine() {
   [$('editor-title'), $('editor')].forEach(el => {
     el.addEventListener('input', () => {
       if (el.id === 'editor') {
-        if (el.innerText.length > 50000) { showToast('최대 50,000자까지 가능합니다.'); el.innerText = el.innerText.slice(0, 50000); }
+        if (el.innerText.length > 50000) { 
+          showToast('최대 50,000자까지 가능합니다.'); 
+          el.innerText = el.innerText.slice(0, 50000); 
+          // 커서를 맨 뒤로 이동
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
         
         // 플레이스홀더 상태 토글
         if (el.innerHTML === '<div><br></div>' || el.innerHTML === '' || el.innerHTML === '<br>') {
