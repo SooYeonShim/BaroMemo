@@ -714,6 +714,57 @@ function performEditorSearch() {
   }
 }
 
+function linkifyEditor() {
+  const editor = $('editor');
+  const sel = window.getSelection();
+  let savedRange = null;
+  if (sel.rangeCount > 0) savedRange = sel.getRangeAt(0).cloneRange();
+
+  const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
+  const textNodes = [];
+  const walk = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null, false);
+  let n;
+  while (n = walk.nextNode()) {
+    if (!n.parentElement.closest('.memo-link')) {
+      textNodes.push(n);
+    }
+  }
+
+  textNodes.forEach(node => {
+    const text = node.textContent;
+    let match;
+    const fragments = [];
+    let lastIdx = 0;
+    while ((match = urlPattern.exec(text)) !== null) {
+      if (match.index > lastIdx) {
+        fragments.push(document.createTextNode(text.substring(lastIdx, match.index)));
+      }
+      const span = document.createElement('span');
+      span.className = 'memo-link';
+      span.dataset.href = match[0];
+      span.textContent = match[0];
+      fragments.push(span);
+      lastIdx = urlPattern.lastIndex;
+    }
+
+    if (fragments.length > 0) {
+      if (lastIdx < text.length) {
+        fragments.push(document.createTextNode(text.substring(lastIdx)));
+      }
+      const parent = node.parentNode;
+      fragments.forEach(f => parent.insertBefore(f, node));
+      parent.removeChild(node);
+    }
+  });
+
+  if (savedRange) {
+    try {
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+    } catch (e) {}
+  }
+}
+
 function closeEditorSearch() { $('in-page-search').style.display = 'none'; if (CSS.highlights) { CSS.highlights.delete('search-match'); CSS.highlights.delete('search-active'); } $('editor').focus(); }
 
 function duplicateLine() {
@@ -1280,9 +1331,10 @@ function duplicateLine() {
 
   $('editor').addEventListener('click', (e) => {
     if (e.target.tagName === 'IMG') window.api.openImageViewer(e.target.src, document.body.classList.contains('dark') ? 'dark' : 'light', e.target.naturalWidth, e.target.naturalHeight);
-    if (e.target.classList.contains('memo-link') && e.ctrlKey) {
+    const link = e.target.closest('.memo-link');
+    if (link && e.ctrlKey) {
       e.preventDefault();
-      const href = e.target.getAttribute('data-href');
+      const href = link.getAttribute('data-href');
       if (href) window.api.openExternal(href);
     }
   });
@@ -1303,6 +1355,22 @@ function duplicateLine() {
     if (htmlData && htmlData.includes('<!-- baromemo-mixed -->')) return;
     const items = e.clipboardData?.items; 
     if (items) { for (const item of items) { if (item.type.startsWith('image/')) { e.preventDefault(); await insertImageFromFile(item.getAsFile()); return; } } }
+    
+    // 붙여넣기 완료 후 URL을 링크로 변환
+    setTimeout(() => {
+      linkifyEditor();
+      
+      const editor = $('editor');
+      if (editor.children.length > 1) {
+        const first = editor.firstElementChild;
+        if (first && first.tagName === 'DIV' && (first.innerHTML === '<br>' || first.innerHTML === '')) {
+          first.remove();
+        }
+      }
+
+      updateCurrentMemo();
+    }, 10);
+
     if (textData && !htmlData) {
       const urlPattern = /^(https?:\/\/[^\s]+)$/i;
       const trimmed = textData.trim();
