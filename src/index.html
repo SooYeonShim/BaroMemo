@@ -292,7 +292,16 @@ body.dark .filter-tag-chip {
     -webkit-user-drag: none;
     user-select: text;
     overflow-wrap: anywhere;
-    display: inline-block;
+    display: inline;
+  }
+  .memo-link::before {
+    content: '\200B';
+    color: inherit;
+    text-decoration: none;
+  }
+  li {
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   /* 전역 커스텀 툴팁 스타일 */
   #link-tooltip {

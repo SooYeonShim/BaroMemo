@@ -1435,18 +1435,6 @@ function duplicateLine() {
         const html = `<span class="memo-link" data-href="${trimmed}">${trimmed}</span> `;
         document.execCommand('insertHTML', false, html);
         
-        // 2. 삽입된 노드 뒤의 텍스트 노드로 커서 강제 이동
-        const sel = window.getSelection();
-        if (sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
-          let node = range.startContainer;
-          if (node.nodeType === 3) {
-             range.setStart(node, node.textContent.length);
-             range.collapse(true);
-             sel.removeAllRanges();
-             sel.addRange(range);
-          }
-        }
         setTimeout(updateCurrentMemo, 10);
         return;
       }
