@@ -500,6 +500,9 @@ function renderAll() {
   renderTagFilter();
   renderActiveTags();
   renderMemoList();
+
+  const currentMemo = currentMemoId ? state.memos.find(m => m.id === currentMemoId) : null;
+  if (currentMemo) renderCurrentTags(currentMemo.tags);
   
   const labelFolder = $('list-label-folder');
   const newMemoBtn = $('new-memo-btn');
@@ -527,6 +530,10 @@ function renderTagFilter() {
   else if (activeFolder !== '__all__') memos = memos.filter(m => m.folder === activeFolder);
   
   const allTags = [...new Set(memos.flatMap(m => m.tags || []))];
+  
+  // 현재 컨텍스트에 존재하지 않는 태그는 선택 목록에서 제거 (버그 수정)
+  activeTags = activeTags.filter(t => allTags.includes(t));
+
   const el = $('tag-filter-list'), section = $('tag-filter-section');
   if (!el || !section) return;
   el.innerHTML = '';
@@ -599,9 +606,7 @@ function addTagToCurrent(tag) {
   const cleaned = tag.trim().replace(/^#/, '');
   if (!cleaned || memo.tags.includes(cleaned)) return;
   memo.tags.push(cleaned);
-  renderCurrentTags(memo.tags);
-  renderTagFilter();
-  renderMemoList();
+  renderAll();
   scheduleSave();
 }
 
@@ -609,9 +614,7 @@ function removeTagFromCurrent(tag) {
   const memo = state.memos.find(m => m.id === currentMemoId);
   if (!memo || memo.deleted) return;
   memo.tags = (memo.tags || []).filter(t => t !== tag);
-  renderCurrentTags(memo.tags);
-  renderTagFilter();
-  renderMemoList();
+  renderAll();
   scheduleSave();
 }
 
