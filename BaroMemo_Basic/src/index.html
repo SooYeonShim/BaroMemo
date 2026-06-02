@@ -105,6 +105,7 @@
     transition: background 0.15s;
     background: transparent;
     color: var(--text2);
+    flex-shrink: 0;
   }
   .ctrl-btn:hover { background: var(--bg3); color: var(--text); }
   .ctrl-btn.active { color: var(--bg); background: var(--accent2); }
@@ -152,6 +153,8 @@
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 body.dark .filter-tag-chip {
   background: #555555;
@@ -194,19 +197,24 @@ body.dark .filter-tag-chip {
   #tag-row {
     display: none;
     align-items: center;
-    gap: 4px; /* 간격 축소 */
-    padding: 8px 15px 8px 6px;
+    gap: 6px;
+    padding: 8px 12px;
     background: var(--bg3);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
     min-height: 40px;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
   }
+  #tag-row::-webkit-scrollbar { display: none; }
   #tag-row.show { display: flex; }
   #current-tags {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
     align-items: center;
+    flex-shrink: 0;
   }
   .tag-chip-removable {
     display: inline-flex;
@@ -257,6 +265,8 @@ body.dark .filter-tag-chip {
     padding: 3px 8px;
     transition: all 0.15s;
     display: flex; align-items: center; justify-content: center;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   .tool-btn:hover { border-color: var(--border); color: var(--text); background: var(--bg3); }
   .tool-btn.active { background: var(--accent2); color: var(--bg); border-color: var(--accent2); }
@@ -280,6 +290,11 @@ body.dark .filter-tag-chip {
   }
   .tool-select:focus { border-color: var(--accent); color: var(--text); }
 
+  #editor font { color: inherit !important; text-decoration: none !important; }
+  #editor font u { text-decoration: none !important; }
+  #editor[data-ctrl] .memo-link {
+    cursor: pointer !important;
+  }
   .memo-link {
     color: #0066cc;
     text-decoration: underline;
@@ -287,7 +302,16 @@ body.dark .filter-tag-chip {
     -webkit-user-drag: none;
     user-select: text;
     overflow-wrap: anywhere;
-    display: inline-block;
+    display: inline;
+  }
+  .memo-link::before {
+    content: '\200B';
+    color: inherit;
+    text-decoration: none;
+  }
+  li {
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
   /* 전역 커스텀 툴팁 스타일 */
   #link-tooltip {
@@ -658,6 +682,21 @@ body.dark .filter-tag-chip {
     background-color: rgba(255, 212, 0, 0.3);
   }
 
+  #tag-filter-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 4px;
+  }
+
+  #tag-filter-list .tag-chip {
+    font-size: 11px; color: var(--text2); background: var(--tag-bg);
+    padding: 2px 8px; border-radius: 10px; border: 1px solid transparent;
+    cursor: pointer; transition: all 0.15s; font-family: inherit;
+  }
+  #tag-filter-list .tag-chip:hover { border-color: var(--border); background: var(--bg); }
+  #tag-filter-list .tag-chip.active { background: var(--accent); color: #fff; }
+  body.dark #tag-filter-list .tag-chip.active { background: var(--accent2); color: var(--bg); }
+
   .memo-item .memo-tags { display: flex; gap: 3px; margin-top: 4px; flex-wrap: wrap; }
   .memo-item .tag-chip {
     font-size: 9px;
@@ -722,6 +761,20 @@ body.dark .filter-tag-chip {
   }
   .toast-msg.show { opacity: 1; bottom: 60px; }
   body.dark .toast-msg { background: rgba(255, 255, 255, 0.8); color: #111; }
+
+  #active-tag-section {
+    border-top: 1px solid var(--border); padding: 8px 12px; flex-shrink: 0; display: none;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  #active-tag-section::-webkit-scrollbar { display: none; }
+  #active-tag-chips {
+    display: flex; flex-wrap: nowrap; gap: 6px; min-height: 20px;
+    align-items: center;
+  }
+  #tag-filter-section {
+    border-top: 1px solid var(--border); padding: 8px 12px; flex-shrink: 0; 
+    height: 92px; overflow-y: auto; display: none;
+  }
 </style>
 </head>
 <body>
@@ -826,11 +879,11 @@ body.dark .filter-tag-chip {
   </div>
   <div id="memo-list" style="flex: 1; min-height: 0;"></div>
   
-  <div id="active-tag-section" style="border-top: 1px solid var(--border); padding: 8px 12px; flex-shrink: 0; display: none;">
-    <div id="active-tag-chips" style="display: flex; flex-wrap: wrap; gap: 4px; min-height: 20px;"></div>
+  <div id="active-tag-section">
+    <div id="active-tag-chips"></div>
   </div>
-  <div id="tag-filter-section" style="border-top: 1px solid var(--border); padding: 8px 12px; flex-shrink: 0; max-height: 150px; overflow-y: auto; display: none;">
-    <div id="tag-filter-list" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+  <div id="tag-filter-section">
+    <div id="tag-filter-list"></div>
   </div>
   <div id="trash-section" style="flex-shrink: 0; padding-bottom: 4px;"></div>
 </div>

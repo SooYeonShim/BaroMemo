@@ -538,8 +538,13 @@ function renderTagFilter() {
     btn.className = 'tag-chip' + (isActive ? ' active' : '');
     btn.textContent = `#${t}`;
     btn.addEventListener('click', () => {
+      const adding = !isActive;
       activeTags = isActive ? activeTags.filter(tag => tag !== t) : [...activeTags, t];
       renderAll();
+      if (adding) {
+        const activeSection = $('active-tag-section');
+        activeSection.scrollLeft = activeSection.scrollWidth;
+      }
     });
     el.appendChild(btn);
   });
@@ -564,21 +569,35 @@ function renderCurrentTags(tags) {
   const el = $('current-tags');
   if (!el) return;
   el.innerHTML = '';
-  (tags || []).forEach(t => {
+  const tagList = tags || [];
+  tagList.forEach(t => {
     const span = document.createElement('span');
     span.className = 'tag-chip-removable';
     span.innerHTML = `#${t} <span class="rm">✕</span>`;
     span.querySelector('.rm').addEventListener('click', () => removeTagFromCurrent(t));
     el.appendChild(span);
   });
+  
+  // 태그 개수가 100개 이상이면 입력창 숨김
+  const input = $('tag-input');
+  if (input) {
+    if (tagList.length >= 100) input.style.display = 'none';
+    else input.style.display = 'block';
+  }
 }
 
 function addTagToCurrent(tag) {
   const memo = state.memos.find(m => m.id === currentMemoId);
   if (!memo || memo.deleted) return;
-  const cleaned = tag.trim().replace(/^#/, '');
-  if (!cleaned || (memo.tags || []).includes(cleaned)) return;
+  
   memo.tags = memo.tags || [];
+  if (memo.tags.length >= 100) {
+    showToast('태그는 최대 100개까지 추가할 수 있습니다.');
+    return;
+  }
+
+  const cleaned = tag.trim().replace(/^#/, '');
+  if (!cleaned || memo.tags.includes(cleaned)) return;
   memo.tags.push(cleaned);
   renderCurrentTags(memo.tags);
   renderTagFilter();
@@ -743,22 +762,44 @@ function linkifyEditor() {
   const textNodes = [];
   function collectTextNodes(node) {
     if (node.nodeType === 3) {
-      if (!node.parentElement.closest('.memo-link')) textNodes.push(node);
-    } else {
+      // 텍스트 노드 수집
+      textNodes.push(node);
+    } else if (node.nodeType === 1) {
+      // .memo-link span 자체는 건너뜀 (내용물만 처리)
       for (let child of node.childNodes) collectTextNodes(child);
     }
   }
   collectTextNodes(editor);
 
-  // 3. 변환 실행
+  const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
+
+  // 3. 변환 및 정리 실행
   textNodes.forEach(node => {
-    const urlPattern = /https?:\/\/[^\s\u00a0]+/gi;
+    const parent = node.parentNode;
+    if (!parent) return;
+
+    // 이미 링크인 경우: 텍스트가 URL과 일치하지 않으면 unwrap
+    if (parent.tagName === 'SPAN' && parent.classList.contains('memo-link')) {
+      const linkText = parent.textContent;
+      if (!linkText.match(/^https?:\/\/[^\s\u00a0]+$/i)) {
+        const fragment = document.createDocumentFragment();
+        while (parent.firstChild) fragment.appendChild(parent.firstChild);
+        parent.parentNode.replaceChild(fragment, parent);
+      }
+      return;
+    }
+
+    // 링크가 아닌 경우: URL 검색 및 변환
     const text = node.textContent;
     let match;
     const fragments = [];
     let lastIdx = 0;
+    urlPattern.lastIndex = 0; // 정규식 상태 초기화
+
     while ((match = urlPattern.exec(text)) !== null) {
-      if (match.index > lastIdx) fragments.push(document.createTextNode(text.substring(lastIdx, match.index)));
+      if (match.index > lastIdx) {
+        fragments.push(document.createTextNode(text.substring(lastIdx, match.index)));
+      }
       const span = document.createElement('span');
       span.className = 'memo-link';
       span.dataset.href = match[0];
@@ -766,13 +807,13 @@ function linkifyEditor() {
       fragments.push(span);
       lastIdx = urlPattern.lastIndex;
     }
+
     if (fragments.length > 0) {
-      if (lastIdx < text.length) fragments.push(document.createTextNode(text.substring(lastIdx)));
-      const parent = node.parentNode;
-      if (parent) {
-        fragments.forEach(f => parent.insertBefore(f, node));
-        parent.removeChild(node);
+      if (lastIdx < text.length) {
+        fragments.push(document.createTextNode(text.substring(lastIdx)));
       }
+      fragments.forEach(f => parent.insertBefore(f, node));
+      parent.removeChild(node);
     }
   });
 
@@ -922,9 +963,9 @@ function duplicateLine() {
           el.removeAttribute('data-empty');
         }
 
-        // 링크 자동 변환 실행
-        clearTimeout(el.linkifyTimer);
-        el.linkifyTimer = setTimeout(linkifyEditor, 200);
+        // 링크 실시간 자동 변환(linkifyEditor) 비활성화 (1안 적용)
+        // clearTimeout(el.linkifyTimer);
+        // el.linkifyTimer = setTimeout(linkifyEditor, 200);
       }
       updateCurrentMemo();
     });
@@ -1400,7 +1441,6 @@ function duplicateLine() {
 
   $('editor').addEventListener('paste', async (e) => { 
     const htmlData = e.clipboardData.getData('text/html'), textData = e.clipboardData.getData('text/plain');
-    if (htmlData && htmlData.includes('<!-- baromemo-mixed -->')) return;
     const items = e.clipboardData?.items; 
     if (items) { for (const item of items) { if (item.type.startsWith('image/')) { e.preventDefault(); await insertImageFromFile(item.getAsFile()); return; } } }
     
@@ -1410,22 +1450,47 @@ function duplicateLine() {
       if (urlPattern.test(trimmed)) {
         e.preventDefault();
         
-        // 1. 스팬 링크 삽입
-        const html = `<span class="memo-link" data-href="${trimmed}">${trimmed}</span> `;
-        document.execCommand('insertHTML', false, html);
-        
-        // 2. 삽입된 노드 뒤의 텍스트 노드로 커서 강제 이동
         const sel = window.getSelection();
-        if (sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
-          let node = range.startContainer;
-          if (node.nodeType === 3) {
-             range.setStart(node, node.textContent.length);
-             range.collapse(true);
-             sel.removeAllRanges();
-             sel.addRange(range);
+        if (!sel.rangeCount) return;
+        
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        
+        // [Refined Fix] 에디터가 완전히 비어있거나 초기 블록만 있는 경우 강제 초기화
+        const editor = $('editor');
+        const isEmptyEditor = editor.innerHTML === '<div><br></div>' || editor.innerHTML === '<br>' || editor.innerHTML === '';
+        
+        if (isEmptyEditor) {
+          editor.innerHTML = '';
+          editor.removeAttribute('data-empty'); // 붙여넣기 즉시 플레이스홀더 제거
+          // 에디터를 비웠으므로 range를 다시 잡음
+          range.setStart(editor, 0);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        } else {
+          // 일반적인 빈 블록(LI 등) 처리 로직 유지
+          let block = range.startContainer;
+          if (block.nodeType === 3) block = block.parentNode;
+          while (block && block !== editor && !['DIV','P','LI'].includes(block.nodeName)) {
+            block = block.parentNode;
+          }
+          if (block && block !== editor && (block.innerHTML === '<br>' || block.innerHTML === '')) {
+            block.innerHTML = '';
+            range.setStart(block, 0);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
           }
         }
+        
+        // 1. 링크 스팬 및 방화벽(ZWSP)을 HTML로 구성하여 삽입 (Undo 스택 지원)
+        const html = `<span class="memo-link" data-href="${trimmed}">${trimmed}</span>\u200B`;
+        document.execCommand('insertHTML', false, html);
+        
+        // 2. removeFormat 실행하여 서식 단절 (커서는 이미 ZWSP 뒤에 위치함)
+        document.execCommand('removeFormat', false, null);
+
         setTimeout(updateCurrentMemo, 10);
         return;
       }
@@ -1524,7 +1589,67 @@ function duplicateLine() {
   
   $('tag-input').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTagToCurrent($('tag-input').value); $('tag-input').value = '#'; } });
 
-  $('addCategoryBtn').addEventListener('click', () => { editingFolder = null; $('folderModal').querySelector('h3').textContent = '새 카테고리 추가'; $('folderNameInput').value = ''; showFolderError(null); $('folderModal').classList.add('show'); setTimeout(() => $('folderNameInput').focus(), 50); });
+  // 태그 행 마우스 휠 가로 스크롤 지원
+  const tagRow = $('tag-row');
+  tagRow.addEventListener('wheel', (e) => {
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      tagRow.scrollLeft += e.deltaY;
+    }
+  });
+
+  // 사이드바 선택된 태그 가로 스크롤 지원
+  const activeTagSection = $('active-tag-section');
+  activeTagSection.addEventListener('wheel', (e) => {
+    if (e.deltaY !== 0) {
+      e.preventDefault();
+      activeTagSection.scrollLeft += e.deltaY;
+    }
+  });
+
+  // 태그 행 드래그 스크롤 지원
+  let isDown = false;
+  let startX;
+  let scrollLeft;
+
+  const setupDragScroll = (el) => {
+    let _isDown = false;
+    let _startX;
+    let _scrollLeft;
+
+    el.addEventListener('mousedown', (e) => {
+      _isDown = true;
+      el.style.cursor = 'grabbing';
+      _startX = e.pageX - el.offsetLeft;
+      _scrollLeft = el.scrollLeft;
+    });
+    el.addEventListener('mouseleave', () => {
+      _isDown = false;
+      el.style.cursor = 'pointer';
+    });
+    el.addEventListener('mouseup', () => {
+      _isDown = false;
+      el.style.cursor = 'pointer';
+    });
+    el.addEventListener('mousemove', (e) => {
+      if (!_isDown) return;
+      e.preventDefault();
+      const x = e.pageX - el.offsetLeft;
+      const walk = (x - _startX) * 1.5;
+      el.scrollLeft = _scrollLeft - walk;
+    });
+  };
+
+  setupDragScroll(tagRow);
+  setupDragScroll(activeTagSection);
+
+  $('addCategoryBtn').addEventListener('click', () => {
+    if (state.folders.length >= 999) {
+      showToast('카테고리는 최대 999개까지 추가할 수 있습니다.');
+      return;
+    }
+    editingFolder = null; $('folderModal').querySelector('h3').textContent = '새 카테고리 추가'; $('folderNameInput').value = ''; showFolderError(null); $('folderModal').classList.add('show'); setTimeout(() => $('folderNameInput').focus(), 50);
+  });
   $('folderModalCancel').addEventListener('click', () => { $('folderModal').classList.remove('show'); editingFolder = null; });
   $('folderModalOk').addEventListener('click', () => {
     const name = $('folderNameInput').value.trim(); if (!name) { $('folderModal').classList.remove('show'); return; }
