@@ -1447,6 +1447,8 @@ function duplicateLine() {
           // 에디터를 비웠으므로 range를 다시 잡음
           range.setStart(editor, 0);
           range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
         } else {
           // 일반적인 빈 블록(LI 등) 처리 로직 유지
           let block = range.startContainer;
@@ -1458,33 +1460,16 @@ function duplicateLine() {
             block.innerHTML = '';
             range.setStart(block, 0);
             range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
           }
         }
         
-        // 1. 링크 스팬 노드 생성
-        const span = document.createElement('span');
-        span.className = 'memo-link';
-        span.setAttribute('data-href', trimmed);
-        span.textContent = trimmed;
+        // 1. 링크 스팬 및 방화벽(ZWSP)을 HTML로 구성하여 삽입 (Undo 스택 지원)
+        const html = `<span class="memo-link" data-href="${trimmed}">${trimmed}</span>\u200B`;
+        document.execCommand('insertHTML', false, html);
         
-        // 2. 방화벽 역할을 할 제로 너비 공백(ZWSP) 텍스트 노드 생성
-        const firewallNode = document.createTextNode('\u200B');
-        
-        // 3. DocumentFragment에 차례대로 담아서 한 번에 삽입 (안정성 확보)
-        const fragment = document.createDocumentFragment();
-        fragment.appendChild(span);
-        fragment.appendChild(firewallNode);
-        
-        range.insertNode(fragment);
-        
-        // 4. 커서를 방화벽 노드(ZWSP)의 바로 뒤(오프셋 1)로 강제 이동
-        // 이렇게 하면 커서가 완벽히 <span> 바깥에 존재하게 됨
-        const newRange = document.createRange();
-        newRange.setStart(firewallNode, 1);
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        
+        // 2. removeFormat 실행하여 서식 단절 (커서는 이미 ZWSP 뒤에 위치함)
         document.execCommand('removeFormat', false, null);
 
         setTimeout(updateCurrentMemo, 10);
